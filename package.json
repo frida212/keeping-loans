@@ -1,39 +1,14 @@
 {
-  "name": "cleartrade-desktop",
+  "name": "keeptrack-web",
   "version": "0.1.0",
   "private": true,
-  "description": "ClearTrade Desktop — Transparent Loan Trading prototype (Electron + React + TypeScript)",
-  "main": "dist/main.js",
-  "author": "ClearTrade",
-  "license": "MIT",
+  "description": "KeepTrack web preview server",
   "scripts": {
-    "start": "concurrently \"npm:watch:main\" \"npm:watch:renderer\" \"electron .\"",
-    "watch:main": "tsc -p tsconfig.main.json -w",
-    "watch:renderer": "webpack --config webpack.renderer.js --watch",
-    "build": "tsc -p tsconfig.main.json && node ./node_modules/webpack/bin/webpack.js --config webpack.renderer.js",
-    "build:web": "node ./node_modules/webpack/bin/webpack.js --config webpack.renderer.js",
-    "package": "electron-builder"
-  },
-  "devDependencies": {
-    "concurrently": "^7.0.0",
-    "electron": "^26.0.0",
-    "electron-builder": "^24.0.0",
-    "typescript": "^5.0.0",
-    "webpack": "^5.0.0",
-    "webpack-cli": "^4.0.0",
-    "ts-loader": "^9.4.2",
-    "html-webpack-plugin": "^5.5.0",
-    "css-loader": "^6.9.1",
-    "style-loader": "^3.3.4",
-    "copy-webpack-plugin": "^12.0.0",
-    "@types/react": "^18.2.46",
-    "@types/react-dom": "^18.2.18",
-    "@types/node": "^20.11.10"
+    "start": "node server.js"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "papaparse": "^5.4.1",
-    "electron-store": "^8.1.0"
+    "compression": "^1.7.4",
+    "express": "^4.18.2",
+    "serve-static": "^1.15.0"
   }
 }
