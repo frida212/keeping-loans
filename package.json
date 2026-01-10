@@ -11,6 +11,7 @@
     "watch:main": "tsc -p tsconfig.main.json -w",
     "watch:renderer": "webpack --config webpack.renderer.js --watch",
     "build": "tsc -p tsconfig.main.json && webpack --config webpack.renderer.js",
+    "build:web": "webpack --config webpack.renderer.js",
     "package": "electron-builder"
   },
   "devDependencies": {
@@ -23,7 +24,10 @@
     "ts-loader": "^9.4.2",
     "html-webpack-plugin": "^5.5.0",
     "css-loader": "^6.9.1",
-    "style-loader": "^3.3.4"
+    "style-loader": "^3.3.4",
+    "@types/react": "^18.2.46",
+    "@types/react-dom": "^18.2.18",
+    "@types/node": "^20.11.10"
   },
   "dependencies": {
     "react": "^18.2.0",
