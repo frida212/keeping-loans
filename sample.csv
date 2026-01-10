@@ -1,0 +1,4 @@
+loan_id,borrower,balance,dpd,last_payment_date,scheduled_payment,last_payment_amount
+LN-1001,Jane Doe,125000,0,2025-12-15,1200,1200
+LN-1002,Acme LLC,78000,18,2025-12-01,2500,1500
+LN-1003,John Smith,34000,35,2025-11-20,800,300

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>KeepTrack Preview</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      const { useState, useMemo } = React;
+      function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+      function computeRisk(row) {
+        const dpd = Number(row.dpd || 0);
+        const scheduled = Number(row.scheduled_payment || 0);
+        const last = Number(row.last_payment_amount || 0);
+        const ratio = scheduled > 0 ? last / scheduled : 1;
+        const z = -2 + 0.06 * dpd + -1.5 * ratio;
+        return sigmoid(z);
+      }
+      function riskBand(score) {
+        if (score >= 0.4) return "High";
+        if (score >= 0.2) return "Medium";
+        return "Low";
+      }
+      function bandClass(score) {
+        if (score >= 0.4) return "bg-red-100 text-red-700";
+        if (score >= 0.2) return "bg-amber-100 text-amber-700";
+        return "bg-emerald-100 text-emerald-700";
+      }
+      function suggestTaskForLoan(loan) {
+        if (loan.risk_score >= 0.4) {
+          return { id: loan.id + "-task-1", loan_id: loan.id, title: "Send late-payment notice" };
+        }
+        return null;
+      }
+      function App() {
+        const [loans, setLoans] = useState([]);
+        const [tasks, setTasks] = useState([]);
+        const [status, setStatus] = useState("");
+        const [query, setQuery] = useState("");
+        const [riskFilter, setRiskFilter] = useState("All");
+        const [sortKey, setSortKey] = useState("risk");
+        function applyRows(rows) {
+          const list = rows.filter(r => r && r.loan_id).map(r => {
+            const risk = computeRisk(r);
+            return {
+              id: String(r.loan_id),
+              borrower: String(r.borrower || ""),
+              balance: Number(r.balance || 0),
+              dpd: Number(r.dpd || 0),
+              last_payment_date: String(r.last_payment_date || ""),
+              scheduled_payment: Number(r.scheduled_payment || 0),
+              last_payment_amount: Number(r.last_payment_amount || 0),
+              risk_score: risk
+            };
+          });
+          setLoans(list);
+          const t = list.map(suggestTaskForLoan).filter(Boolean);
+          setTasks(t);
+        }
+        async function importFile(file) {
+          if (!file) return;
+          setStatus("Importing...");
+          const reader = new FileReader();
+          reader.onload = function() {
+            const text = reader.result;
+            const parsed = Papa.parse(text, { header: true, dynamicTyping: true });
+            applyRows(parsed.data || []);
+            setStatus("Imported " + (parsed.data || []).length);
+          };
+          reader.readAsText(file);
+        }
+        async function loadSample() {
+          setStatus("Loading sample...");
+          const res = await fetch("../../sample.csv");
+          const text = await res.text();
+          const parsed = Papa.parse(text, { header: true, dynamicTyping: true });
+          applyRows(parsed.data || []);
+          setStatus("Loaded sample " + (parsed.data || []).length);
+        }
+        const filtered = useMemo(() => {
+          return loans.filter(l => {
+            const q = query.toLowerCase();
+            const match = !q || l.id.toLowerCase().includes(q) || l.borrower.toLowerCase().includes(q);
+            const band = riskBand(l.risk_score);
+            const matchBand = riskFilter === "All" || band === riskFilter;
+            return match && matchBand;
+          });
+        }, [loans, query, riskFilter]);
+        const sorted = useMemo(() => {
+          const arr = [...filtered];
+          if (sortKey === "risk") arr.sort((a, b) => b.risk_score - a.risk_score);
+          else if (sortKey === "dpd") arr.sort((a, b) => b.dpd - a.dpd);
+          else if (sortKey === "balance") arr.sort((a, b) => b.balance - a.balance);
+          return arr;
+        }, [filtered, sortKey]);
+        const total = loans.length;
+        const flagged = loans.filter(l => l.risk_score >= 0.4).length;
+        const avgRisk = total ? (loans.reduce((s, l) => s + l.risk_score, 0) / total) : 0;
+        function exportFlagged() {
+          const rows = loans.filter(l => l.risk_score >= 0.4).map(l => ({
+            loan_id: l.id, borrower: l.borrower, balance: l.balance, dpd: l.dpd, risk_score: l.risk_score
+          }));
+          const header = "loan_id,borrower,balance,dpd,risk_score\n";
+          const csv = header + rows.map(r => `${r.loan_id},${r.borrower},${r.balance},${r.dpd},${r.risk_score.toFixed(3)}`).join("\n");
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "flagged_loans.csv";
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+        return React.createElement("div", { className: "min-h-screen bg-gray-50" },
+          React.createElement("header", { className: "bg-indigo-600 text-white" },
+            React.createElement("div", { className: "max-w-6xl mx-auto px-4 py-4 flex items-center justify-between" },
+              React.createElement("div", { className: "text-lg font-semibold" }, "KeepTrack"),
+              React.createElement("div", { className: "text-sm opacity-90" }, "Desktop Preview")
+            )
+          ),
+          React.createElement("main", { className: "max-w-6xl mx-auto px-4 py-6" },
+            React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" },
+              React.createElement("div", { className: "bg-white rounded-lg shadow p-4" },
+                React.createElement("div", { className: "text-sm text-gray-500" }, "Loans Imported"),
+                React.createElement("div", { className: "text-2xl font-semibold mt-1" }, total)
+              ),
+              React.createElement("div", { className: "bg-white rounded-lg shadow p-4" },
+                React.createElement("div", { className: "text-sm text-gray-500" }, "Flagged (High Risk)"),
+                React.createElement("div", { className: "text-2xl font-semibold mt-1 text-red-600" }, flagged)
+              ),
+              React.createElement("div", { className: "bg-white rounded-lg shadow p-4" },
+                React.createElement("div", { className: "text-sm text-gray-500" }, "Average Risk"),
+                React.createElement("div", { className: "text-2xl font-semibold mt-1" }, avgRisk.toFixed(3))
+              )
+            ),
+            React.createElement("div", { className: "bg-white rounded-lg shadow p-4 mb-6" },
+              React.createElement("div", { className: "flex flex-col md:flex-row md:items-center md:justify-between gap-3" },
+                React.createElement("div", { className: "flex items-center gap-2" },
+                  React.createElement("input", { type: "file", accept: ".csv", onChange: e => importFile(e.target.files && e.target.files[0]), className: "block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" }),
+                  React.createElement("button", { onClick: loadSample, className: "px-3 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" }, "Load Sample"),
+                  React.createElement("button", { onClick: exportFlagged, className: "px-3 py-2 bg-gray-100 text-gray-800 rounded hover:bg-gray-200" }, "Export Flagged")
+                ),
+                React.createElement("div", { className: "flex items-center gap-2" },
+                  React.createElement("input", { value: query, onChange: e => setQuery(e.target.value), placeholder: "Search borrower or loan", className: "px-3 py-2 border rounded w-64" }),
+                  React.createElement("select", { value: riskFilter, onChange: e => setRiskFilter(e.target.value), className: "px-3 py-2 border rounded" },
+                    React.createElement("option", { value: "All" }, "All Risk"),
+                    React.createElement("option", { value: "Low" }, "Low"),
+                    React.createElement("option", { value: "Medium" }, "Medium"),
+                    React.createElement("option", { value: "High" }, "High")
+                  ),
+                  React.createElement("select", { value: sortKey, onChange: e => setSortKey(e.target.value), className: "px-3 py-2 border rounded" },
+                    React.createElement("option", { value: "risk" }, "Sort: Risk"),
+                    React.createElement("option", { value: "dpd" }, "Sort: DPD"),
+                    React.createElement("option", { value: "balance" }, "Sort: Balance")
+                  )
+                )
+              ),
+              React.createElement("div", { className: "text-sm text-gray-500 mt-2" }, status)
+            ),
+            React.createElement("div", { className: "bg-white rounded-lg shadow overflow-hidden" },
+              React.createElement("div", { className: "px-4 py-3 border-b flex items-center justify-between" },
+                React.createElement("div", { className: "font-semibold" }, "At-risk Loans"),
+                React.createElement("div", { className: "text-sm text-gray-500" }, sorted.length + " shown")
+              ),
+              React.createElement("table", { className: "min-w-full divide-y" },
+                React.createElement("thead", { className: "bg-gray-50" },
+                  React.createElement("tr", null,
+                    React.createElement("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" }, "Loan"),
+                    React.createElement("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" }, "Borrower"),
+                    React.createElement("th", { className: "px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" }, "Balance"),
+                    React.createElement("th", { className: "px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" }, "DPD"),
+                    React.createElement("th", { className: "px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" }, "Risk"),
+                    React.createElement("th", { className: "px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" }, "Suggested Task")
+                  )
+                ),
+                React.createElement("tbody", { className: "bg-white divide-y" },
+                  sorted.map(l => {
+                    const sug = tasks.find(t => t.loan_id === l.id);
+                    return React.createElement("tr", { key: l.id, className: "hover:bg-gray-50" },
+                      React.createElement("td", { className: "px-4 py-2 text-gray-900" }, l.id),
+                      React.createElement("td", { className: "px-4 py-2 text-gray-700" }, l.borrower),
+                      React.createElement("td", { className: "px-4 py-2 text-right text-gray-900" }, l.balance.toFixed(2)),
+                      React.createElement("td", { className: "px-4 py-2 text-right text-gray-900" }, l.dpd),
+                      React.createElement("td", { className: "px-4 py-2 text-right" },
+                        React.createElement("span", { className: "inline-flex items-center px-2 py-1 rounded text-xs font-medium " + bandClass(l.risk_score) }, riskBand(l.risk_score) + " · " + l.risk_score.toFixed(3))
+                      ),
+                      React.createElement("td", { className: "px-4 py-2 text-gray-700" }, sug ? sug.title : "")
+                    );
+                  })
+                )
+              )
+            )
+          )
+        );
+      }
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(React.createElement(App));
+    </script>
+  </body>
+</html>
